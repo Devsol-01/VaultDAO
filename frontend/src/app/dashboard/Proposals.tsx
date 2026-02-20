@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useWallet } from '../../context/WalletContext';
 import { useVaultContract } from '../../hooks/useVaultContract';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import ExportModal, { type ExportDatasets } from '../../components/ExportModal';
+import { saveExportHistoryItem } from '../../utils/exportHistory';
 
 interface Proposal {
     id: number;
@@ -50,7 +52,38 @@ const Proposals: React.FC = () => {
     const [proposals, setProposals] = useState<Proposal[]>(mockProposals);
     const [selectedProposal, setSelectedProposal] = useState<number | null>(null);
     const [showRejectModal, setShowRejectModal] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    const exportDatasets: ExportDatasets = useMemo(() => {
+        const proposalRows = proposals.map((p) => ({
+            id: p.id,
+            proposer: p.proposer,
+            recipient: p.recipient,
+            amount: p.amount,
+            token: p.token,
+            memo: p.memo,
+            status: p.status,
+            approvals: p.approvals,
+            threshold: p.threshold,
+            createdAt: p.createdAt,
+        }));
+        const executed = proposals.filter((p) => p.status === 'Executed');
+        const transactionRows = executed.map((p) => ({
+            id: p.id,
+            type: 'proposal_executed',
+            timestamp: p.createdAt,
+            amount: p.amount,
+            token: p.token,
+            recipient: p.recipient,
+            proposer: p.proposer,
+        }));
+        return {
+            proposals: proposalRows,
+            activity: proposalRows.map((p) => ({ ...p, type: 'proposal', timestamp: p.createdAt })),
+            transactions: transactionRows,
+        };
+    }, [proposals]);
 
     // Mock user role - in production, fetch from contract
     const userRole = 'Admin'; // or 'Treasurer' or 'None'
@@ -94,10 +127,10 @@ const Proposals: React.FC = () => {
 
             console.log('Rejection reason:', reason);
             console.log('Transaction hash:', txHash);
-        } catch (error: any) {
+        } catch (error: unknown) {
             // Show error toast
             setToast({
-                message: error.message || 'Failed to reject proposal',
+                message: error instanceof Error ? error.message : 'Failed to reject proposal',
                 type: 'error',
             });
         } finally {
@@ -141,9 +174,17 @@ const Proposals: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <h2 className="text-3xl font-bold">Proposals</h2>
-                <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium min-h-[44px] sm:min-h-0">
-                    New Proposal
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium min-h-[44px] sm:min-h-0"
+                    >
+                        Export
+                    </button>
+                    <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium min-h-[44px] sm:min-h-0">
+                        New Proposal
+                    </button>
+                </div>
             </div>
 
             {/* Toast Notification */}
@@ -266,6 +307,27 @@ const Proposals: React.FC = () => {
                     ))
                 )}
             </div>
+
+            <ExportModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                vaultName="VaultDAO"
+                vaultAddress={address ?? 'G000000000000000000000000000000000'}
+                initialDataType="proposals"
+                datasets={exportDatasets}
+                onExported={(meta) =>
+                    saveExportHistoryItem({
+                        filename: meta.filename,
+                        dataType: meta.dataType,
+                        format: meta.format,
+                        exportedAt: new Date().toISOString(),
+                        vaultName: 'VaultDAO',
+                        vaultAddress: address ?? undefined,
+                        storedContent: meta.storedContent,
+                        mimeType: meta.mimeType,
+                    })
+                }
+            />
 
             {/* Confirmation Modal */}
             <ConfirmationModal
