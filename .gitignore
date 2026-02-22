@@ -23,5 +23,4 @@ target
 .agent/
 .agents/
 issue.md
-PR_DESCRIPTION.md
-PR_DESCRIPTION_BACKUP.md
+contracts/vault/test_snapshots/
