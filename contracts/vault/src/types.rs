@@ -2,7 +2,7 @@
 //!
 //! Core data structures for the multisig treasury contract.
 
-use soroban_sdk::{contracttype, Address, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
 
 /// Initialization configuration - groups all config params to reduce function arguments
 #[contracttype]
@@ -110,17 +110,6 @@ pub enum Role {
     Admin = 2,
 }
 
-/// Priority levels for proposals.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum Priority {
-    Low = 0,
-    Normal = 1,
-    High = 2,
-    Critical = 3,
-}
-
 /// The lifecycle states of a proposal.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -140,31 +129,50 @@ pub enum ProposalStatus {
     Cancelled = 5,
 }
 
-/// Execution condition types
+/// Proposal priority level for queue ordering
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Condition {
-    /// Execute only if vault balance is above threshold
-    BalanceAbove(i128),
-    /// Execute only if vault balance is below threshold
-    BalanceBelow(i128),
-    /// Execute only after specific ledger
-    DateAfter(u64),
-    /// Execute only before specific ledger
-    DateBefore(u64),
-    /// Custom condition (reserved for future use)
-    Custom(Symbol),
+#[repr(u32)]
+pub enum Priority {
+    Low = 0,
+    Normal = 1,
+    High = 2,
+    Critical = 3,
 }
 
-/// Logic operator for combining multiple conditions
+/// Execution condition type
+#[contracttype]
+#[derive(Clone, Debug)]
+pub enum Condition {
+    /// Execute only when balance is above threshold
+    BalanceAbove(i128),
+    /// Execute only after this ledger sequence
+    DateAfter(u64),
+    /// Execute only before this ledger sequence
+    DateBefore(u64),
+}
+
+/// Logic for combining multiple conditions
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
 pub enum ConditionLogic {
-    /// All conditions must be met
+    /// All conditions must be true
     And = 0,
-    /// At least one condition must be met
+    /// At least one condition must be true
     Or = 1,
+}
+
+/// Recipient list access mode
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ListMode {
+    /// No restriction on recipients
+    Disabled,
+    /// Only whitelisted recipients are allowed
+    Whitelist,
+    /// Blacklisted recipients are blocked
+    Blacklist,
 }
 
 /// Transfer proposal
@@ -185,24 +193,42 @@ pub struct Proposal {
     pub memo: Symbol,
     /// Addresses that have approved
     pub approvals: Vec<Address>,
-    /// Addresses that have abstained
+    /// Addresses that explicitly abstained
     pub abstentions: Vec<Address>,
+    /// IPFS hashes of supporting documents
+    pub attachments: Vec<String>,
     /// Current status
     pub status: ProposalStatus,
-    /// Priority level
+    /// Proposal urgency level
     pub priority: Priority,
-    /// IPFS hashes for attachments (invoices, receipts, documents)
-    pub attachments: Vec<soroban_sdk::String>,
+    /// Execution conditions
+    pub conditions: Vec<Condition>,
+    /// Logic operator for combining conditions
+    pub condition_logic: ConditionLogic,
     /// Ledger sequence when created
     pub created_at: u64,
     /// Ledger sequence when proposal expires
     pub expires_at: u64,
     /// Earliest ledger sequence when proposal can be executed (0 if no timelock)
     pub unlock_ledger: u64,
-    /// Execution conditions (empty = no conditions)
-    pub conditions: Vec<Condition>,
-    /// Logic for combining conditions (default: And)
-    pub condition_logic: ConditionLogic,
+    /// Insurance amount staked by proposer (0 = no insurance). Held in vault.
+    pub insurance_amount: i128,
+    /// Flag indicating if this is a swap proposal
+    pub is_swap: bool,
+}
+
+/// On-chain comment on a proposal
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Comment {
+    pub id: u64,
+    pub proposal_id: u64,
+    pub author: Address,
+    pub text: Symbol,
+    /// Parent comment ID (0 = top-level)
+    pub parent_id: u64,
+    pub created_at: u64,
+    pub edited_at: u64,
 }
 
 /// Recurring payment schedule
@@ -225,7 +251,6 @@ pub struct RecurringPayment {
     pub is_active: bool,
 }
 
-// Add this new struct to types.rs
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct VelocityConfig {
@@ -233,4 +258,196 @@ pub struct VelocityConfig {
     pub limit: u32,
     /// The time window in seconds (e.g., 3600 for 1 hour)
     pub window: u64,
+}
+
+// ============================================================================
+// Reputation System (Issue: feature/reputation-system)
+// ============================================================================
+
+/// Tracks proposer/approver behavior for incentive alignment
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Reputation {
+    /// Composite score (higher = more trusted)
+    pub score: u32,
+    /// Total proposals successfully executed
+    pub proposals_executed: u32,
+    /// Total proposals rejected
+    pub proposals_rejected: u32,
+    /// Total proposals created
+    pub proposals_created: u32,
+    /// Total approvals given
+    pub approvals_given: u32,
+    /// Ledger when reputation was last decayed
+    pub last_decay_ledger: u64,
+}
+
+impl Reputation {
+    pub fn default() -> Self {
+        Reputation {
+            score: 500, // Start at neutral 500/1000
+            proposals_executed: 0,
+            proposals_rejected: 0,
+            proposals_created: 0,
+            approvals_given: 0,
+            last_decay_ledger: 0,
+        }
+    }
+}
+
+// ============================================================================
+// Insurance System (Issue: feature/proposal-insurance)
+// ============================================================================
+
+/// Insurance configuration stored on-chain
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct InsuranceConfig {
+    /// Whether insurance is required for proposals above min_amount
+    pub enabled: bool,
+    /// Minimum proposal amount that requires insurance (in stroops)
+    pub min_amount: i128,
+    /// Minimum insurance as basis points of proposal amount (e.g. 100 = 1%)
+    pub min_insurance_bps: u32,
+    /// Percentage of insurance slashed on rejection (0-100)
+    pub slash_percentage: u32,
+}
+
+// ============================================================================
+// Notification Preferences (Issue: feature/execution-notifications)
+// ============================================================================
+
+/// Per-user notification preferences stored on-chain
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct NotificationPreferences {
+    pub notify_on_proposal: bool,
+    pub notify_on_approval: bool,
+    pub notify_on_execution: bool,
+    pub notify_on_rejection: bool,
+    pub notify_on_expiry: bool,
+}
+
+impl NotificationPreferences {
+    pub fn default() -> Self {
+        NotificationPreferences {
+            notify_on_proposal: true,
+            notify_on_approval: true,
+            notify_on_execution: true,
+            notify_on_rejection: true,
+            notify_on_expiry: false,
+        }
+    }
+}
+
+// ============================================================================
+// AMM/DEX Integration (Issue: feature/amm-integration)
+// ============================================================================
+
+/// DEX configuration for automated trading
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct DexConfig {
+    /// Enabled DEX protocols
+    pub enabled_dexs: Vec<Address>,
+    /// Maximum slippage tolerance in basis points (e.g., 100 = 1%)
+    pub max_slippage_bps: u32,
+    /// Maximum price impact in basis points (e.g., 500 = 5%)
+    pub max_price_impact_bps: u32,
+    /// Minimum liquidity required for swaps
+    pub min_liquidity: i128,
+}
+
+/// Swap proposal type
+#[contracttype]
+#[derive(Clone, Debug)]
+pub enum SwapProposal {
+    /// Simple token swap: (dex, token_in, token_out, amount_in, min_amount_out)
+    Swap(Address, Address, Address, i128, i128),
+    /// Add liquidity: (dex, token_a, token_b, amount_a, amount_b, min_lp_tokens)
+    AddLiquidity(Address, Address, Address, i128, i128, i128),
+    /// Remove liquidity: (dex, lp_token, amount, min_token_a, min_token_b)
+    RemoveLiquidity(Address, Address, i128, i128, i128),
+    /// Stake LP tokens: (farm, lp_token, amount)
+    StakeLp(Address, Address, i128),
+    /// Unstake LP tokens: (farm, lp_token, amount)
+    UnstakeLp(Address, Address, i128),
+    /// Claim farming rewards: (farm)
+    ClaimRewards(Address),
+}
+
+/// DEX operation result
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct SwapResult {
+    pub amount_in: i128,
+    pub amount_out: i128,
+    pub price_impact_bps: u32,
+    pub executed_at: u64,
+}
+
+// ============================================================================
+// Cross-Chain Bridge (Issue: feature/cross-chain-bridge)
+// ============================================================================
+
+/// Chain identifier for cross-chain operations
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ChainId {
+    Stellar,
+    Ethereum,
+    Polygon,
+    Arbitrum,
+    Optimism,
+}
+
+/// Cross-chain asset representation
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct CrossChainAsset {
+    pub chain: ChainId,
+    pub token_address: String,
+    pub decimals: u32,
+    pub confirmations: u32,
+    pub required_confirmations: u32,
+    pub status: u32,
+}
+
+/// Cross-chain transfer proposal
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct CrossChainProposal {
+    pub target_chain: ChainId,
+    pub recipient: String,
+    pub amount: i128,
+    pub asset: CrossChainAsset,
+    pub bridge_fee: i128,
+}
+
+/// Bridge configuration
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BridgeConfig {
+    pub enabled_chains: Vec<ChainId>,
+    pub max_bridge_amount: i128,
+    pub fee_bps: u32,
+    pub min_confirmations: Vec<ChainConfirmation>,
+}
+
+/// Minimum confirmations per chain
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ChainConfirmation {
+    pub chain_id: ChainId,
+    pub confirmations: u32,
+}
+
+/// Cross-chain transfer parameters
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct CrossChainTransferParams {
+    pub chain: ChainId,
+    pub recipient: String,
+    pub amount: i128,
+    pub token: Address,
 }

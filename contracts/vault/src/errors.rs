@@ -80,4 +80,48 @@ pub enum VaultError {
     /// Date condition not satisfied
     DateConditionFailed = 702,
     ProposalAlreadyCancelled = 703,
+
+    // Recipient list errors (8xx)
+    AddressAlreadyOnList = 800,
+    AddressNotOnList = 801,
+    RecipientNotWhitelisted = 802,
+    RecipientBlacklisted = 803,
+
+    // Comment errors (9xx)
+    CommentTooLong = 900,
+    NotCommentAuthor = 901,
+
+    // Batch errors (10xx)
+    /// Batch size exceeds the maximum allowed limit
+    BatchTooLarge = 1000,
+
+    // Insurance errors (11xx)
+    /// Insufficient insurance stake for the proposal amount
+    InsuranceInsufficient = 1100,
+
+    // Reputation errors (12xx)
+    /// Caller's reputation score is too low to perform this action
+    ReputationTooLow = 1200,
+
+    // DEX/AMM errors (13xx)
+    /// DEX is not enabled in configuration
+    DexNotEnabled = 1300,
+    /// Slippage exceeds maximum tolerance
+    SlippageExceeded = 1301,
+    /// Price impact exceeds maximum tolerance
+    PriceImpactExceeded = 1302,
+    /// Insufficient liquidity in pool
+    InsufficientLiquidity = 1303,
+    /// Invalid swap parameters
+    InvalidSwapParams = 1304,
+    /// DEX operation failed
+    DexOperationFailed = 1305,
+
+    // Bridge errors (14xx)
+    /// Bridge is not configured
+    BridgeNotConfigured = 1400,
+    /// Target chain is not supported
+    ChainNotSupported = 1401,
+    /// Amount exceeds bridge limit
+    ExceedsBridgeLimit = 1402,
 }
