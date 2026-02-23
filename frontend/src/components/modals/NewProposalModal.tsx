@@ -13,13 +13,9 @@ interface NewProposalModalProps {
   loading: boolean;
   selectedTemplateName: string | null;
   formData: NewProposalFormData;
-  tokenBalances: TokenBalance[];
-  selectedToken: TokenInfo | null;
-  amountError: string | null;
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
   onFieldChange: (field: keyof NewProposalFormData, value: string) => void;
-  onTokenSelect: (token: TokenInfo) => void;
   onOpenTemplateSelector: () => void;
   onSaveAsTemplate: () => void;
 }
@@ -29,13 +25,9 @@ const NewProposalModal: React.FC<NewProposalModalProps> = ({
   loading,
   selectedTemplateName,
   formData,
-  tokenBalances,
-  selectedToken,
-  amountError,
   onClose,
   onSubmit,
   onFieldChange,
-  onTokenSelect,
   onOpenTemplateSelector,
   onSaveAsTemplate,
 }) => {

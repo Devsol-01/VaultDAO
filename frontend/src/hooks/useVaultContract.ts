@@ -12,14 +12,6 @@ import { signTransaction } from '@stellar/freighter-api';
 import { useWallet } from '../context/WalletContextProps';
 import { parseError } from '../utils/errorParser';
 import type { VaultActivity, GetVaultEventsResult, VaultEventType } from '../types/activity';
-import type { TokenInfo } from '../constants/tokens';
-import { 
-    DEFAULT_TOKENS, 
-    XLM_TOKEN, 
-    getAllTrackedTokens, 
-    addCustomToken as addCustomTokenToStorage,
-    isValidStellarAddress
-} from '../constants/tokens';
 
 const CONTRACT_ID = "CDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
@@ -712,6 +704,7 @@ export const useVaultContract = () => {
 
     return {
         proposeTransfer,
+        approveProposal,
         rejectProposal,
         executeProposal,
         getDashboardStats,
@@ -738,5 +731,8 @@ export const useVaultContract = () => {
         getAllRoles,
         assignRole,
         revokeRole,
+        getTokenBalances: async () => [],
+        getPortfolioValue: async () => "0",
+        addCustomToken: async () => { },
     };
 };
