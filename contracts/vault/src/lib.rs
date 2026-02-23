@@ -1603,8 +1603,11 @@ impl VaultDAO {
         }
 
         // Validate DEX is enabled
-        let dex_config = config.dex_config.as_ref().ok_or(VaultError::DexNotEnabled)?;
-        
+        let dex_config = config
+            .dex_config
+            .as_ref()
+            .ok_or(VaultError::DexNotEnabled)?;
+
         // Validate DEX address
         let dex_addr = match &swap_op {
             types::SwapProposal::Swap(dex, ..) => dex,
@@ -1676,9 +1679,15 @@ impl VaultDAO {
         }
 
         // Get swap operation
-        let swap_op = proposal.swap_operation.as_ref().ok_or(VaultError::InvalidSwapParams)?;
+        let swap_op = proposal
+            .swap_operation
+            .as_ref()
+            .ok_or(VaultError::InvalidSwapParams)?;
         let config = storage::get_config(&env)?;
-        let dex_config = config.dex_config.as_ref().ok_or(VaultError::DexNotEnabled)?;
+        let dex_config = config
+            .dex_config
+            .as_ref()
+            .ok_or(VaultError::DexNotEnabled)?;
 
         // Execute based on operation type
         let result = match swap_op {
@@ -1693,20 +1702,36 @@ impl VaultDAO {
                     dex_config,
                 )?
             }
-            types::SwapProposal::AddLiquidity(dex, token_a, token_b, amount_a, amount_b, min_lp_tokens) => {
-                Self::add_liquidity_to_pool(
-                    &env,
-                    dex,
-                    token_a,
-                    token_b,
-                    *amount_a,
-                    *amount_b,
-                    *min_lp_tokens,
-                )?
-            }
-            types::SwapProposal::RemoveLiquidity(dex, lp_token, amount, min_token_a, min_token_b) => {
-                Self::remove_liquidity_from_pool(&env, dex, lp_token, *amount, *min_token_a, *min_token_b)?
-            }
+            types::SwapProposal::AddLiquidity(
+                dex,
+                token_a,
+                token_b,
+                amount_a,
+                amount_b,
+                min_lp_tokens,
+            ) => Self::add_liquidity_to_pool(
+                &env,
+                dex,
+                token_a,
+                token_b,
+                *amount_a,
+                *amount_b,
+                *min_lp_tokens,
+            )?,
+            types::SwapProposal::RemoveLiquidity(
+                dex,
+                lp_token,
+                amount,
+                min_token_a,
+                min_token_b,
+            ) => Self::remove_liquidity_from_pool(
+                &env,
+                dex,
+                lp_token,
+                *amount,
+                *min_token_a,
+                *min_token_b,
+            )?,
             types::SwapProposal::StakeLp(farm, lp_token, amount) => {
                 Self::stake_lp_tokens(&env, farm, lp_token, *amount)?
             }
@@ -1762,7 +1787,7 @@ impl VaultDAO {
 
         // Execute swap via DEX contract
         token::transfer_to_vault(env, token_in, &env.current_contract_address(), amount_in);
-        
+
         // Call DEX swap function (simplified - actual implementation depends on DEX interface)
         // In production, this would call the actual DEX contract's swap method
         let amount_out = expected_out;
@@ -1909,7 +1934,7 @@ impl VaultDAO {
         let amount_in_with_fee = amount_in * 997 / 1000; // 0.3% fee
         let numerator = amount_in_with_fee * reserve_out;
         let denominator = reserve_in + amount_in_with_fee;
-        
+
         if denominator == 0 {
             return Err(VaultError::InsufficientLiquidity);
         }

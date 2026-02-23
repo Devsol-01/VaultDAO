@@ -1857,8 +1857,8 @@ fn test_dex_config_setup() {
 
     let dex_config = DexConfig {
         enabled_dexs,
-        max_slippage_bps: 100,      // 1%
-        max_price_impact_bps: 500,  // 5%
+        max_slippage_bps: 100,     // 1%
+        max_price_impact_bps: 500, // 5%
         min_liquidity: 10000,
     };
 
@@ -1920,13 +1920,7 @@ fn test_swap_proposal_creation() {
     client.set_dex_config(&admin, &dex_config);
 
     // Create swap proposal
-    let swap_op = SwapProposal::Swap(
-        dex.clone(),
-        token_in.clone(),
-        token_out.clone(),
-        1000,
-        950,
-    );
+    let swap_op = SwapProposal::Swap(dex.clone(), token_in.clone(), token_out.clone(), 1000, 950);
 
     let proposal_id = client.propose_swap(
         &treasurer,
@@ -1979,13 +1973,7 @@ fn test_dex_not_enabled_error() {
     client.set_role(&admin, &treasurer, &Role::Treasurer);
 
     // Try to create swap without DEX config
-    let swap_op = SwapProposal::Swap(
-        dex.clone(),
-        token_in.clone(),
-        token_out.clone(),
-        1000,
-        950,
-    );
+    let swap_op = SwapProposal::Swap(dex.clone(), token_in.clone(), token_out.clone(), 1000, 950);
 
     let result = client.try_propose_swap(
         &treasurer,
@@ -2118,11 +2106,7 @@ fn test_yield_farming_proposal() {
     client.set_dex_config(&admin, &dex_config);
 
     // Create stake LP proposal
-    let swap_op = SwapProposal::StakeLp(
-        farm.clone(),
-        lp_token.clone(),
-        1000,
-    );
+    let swap_op = SwapProposal::StakeLp(farm.clone(), lp_token.clone(), 1000);
 
     let proposal_id = client.propose_swap(
         &treasurer,
