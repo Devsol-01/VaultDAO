@@ -186,8 +186,7 @@ impl VaultDAO {
         let mut actual_insurance = insurance_amount;
         if insurance_config.enabled && amount >= insurance_config.min_amount {
             // Calculate minimum required insurance
-            let mut min_required =
-                amount * insurance_config.min_insurance_bps as i128 / 10_000;
+            let mut min_required = amount * insurance_config.min_insurance_bps as i128 / 10_000;
 
             // Reputation discount: score >= 750 gets 50% off insurance requirement
             let rep = storage::get_reputation(&env, &proposer);
@@ -200,7 +199,11 @@ impl VaultDAO {
             }
         } else {
             // Insurance not required; use 0 unless caller explicitly provided some
-            actual_insurance = if insurance_amount > 0 { insurance_amount } else { 0 };
+            actual_insurance = if insurance_amount > 0 {
+                insurance_amount
+            } else {
+                0
+            };
         }
 
         // Lock insurance tokens in vault
@@ -478,12 +481,7 @@ impl VaultDAO {
 
             // Return remainder to proposer (slash stays in vault as penalty)
             if return_amount > 0 {
-                token::transfer(
-                    &env,
-                    &proposal.token,
-                    &proposal.proposer,
-                    return_amount,
-                );
+                token::transfer(&env, &proposal.token, &proposal.proposer, return_amount);
             }
 
             events::emit_insurance_slashed(
@@ -1204,12 +1202,7 @@ impl VaultDAO {
         // Single TTL extension for the entire batch (gas optimization)
         storage::extend_instance_ttl(&env);
 
-        events::emit_batch_executed(
-            &env,
-            &executor,
-            executed.len(),
-            failed_count,
-        );
+        events::emit_batch_executed(&env, &executor, executed.len(), failed_count);
 
         Ok(executed)
     }
@@ -1390,7 +1383,11 @@ impl VaultDAO {
             ThresholdStrategy::Percentage(pct) => {
                 let signers = config.signers.len();
                 let calc = (signers * pct + 99) / 100; // ceil
-                if calc < 1 { 1 } else { calc }
+                if calc < 1 {
+                    1
+                } else {
+                    calc
+                }
             }
             ThresholdStrategy::AmountBased(tiers) => {
                 // Find the highest tier whose amount is <= proposal amount

@@ -79,12 +79,7 @@ pub fn emit_proposal_executed(
 }
 
 /// Emit when a proposal is rejected (enhanced: includes proposer)
-pub fn emit_proposal_rejected(
-    env: &Env,
-    proposal_id: u64,
-    rejector: &Address,
-    proposer: &Address,
-) {
+pub fn emit_proposal_rejected(env: &Env, proposal_id: u64, rejector: &Address, proposer: &Address) {
     env.events().publish(
         (Symbol::new(env, "proposal_rejected"), proposal_id),
         (rejector.clone(), proposer.clone()),
@@ -152,12 +147,7 @@ pub fn emit_insurance_slashed(
 }
 
 /// Emit when insurance stake is fully returned on successful execution
-pub fn emit_insurance_returned(
-    env: &Env,
-    proposal_id: u64,
-    proposer: &Address,
-    amount: i128,
-) {
+pub fn emit_insurance_returned(env: &Env, proposal_id: u64, proposer: &Address, amount: i128) {
     env.events().publish(
         (Symbol::new(env, "insurance_returned"), proposal_id),
         (proposer.clone(), amount),
@@ -187,12 +177,7 @@ pub fn emit_reputation_updated(
 // ============================================================================
 
 /// Emit when a batch execution completes
-pub fn emit_batch_executed(
-    env: &Env,
-    executor: &Address,
-    executed_count: u32,
-    failed_count: u32,
-) {
+pub fn emit_batch_executed(env: &Env, executor: &Address, executed_count: u32, failed_count: u32) {
     env.events().publish(
         (Symbol::new(env, "batch_executed"),),
         (executor.clone(), executed_count, failed_count),
@@ -205,18 +190,14 @@ pub fn emit_batch_executed(
 
 /// Emit when notification preferences are updated
 pub fn emit_notification_prefs_updated(env: &Env, addr: &Address) {
-    env.events().publish(
-        (Symbol::new(env, "notif_prefs_updated"),),
-        addr.clone(),
-    );
+    env.events()
+        .publish((Symbol::new(env, "notif_prefs_updated"),), addr.clone());
 }
 
 /// Emit when insurance config is updated by admin
 pub fn emit_insurance_config_updated(env: &Env, admin: &Address) {
-    env.events().publish(
-        (Symbol::new(env, "insurance_cfg_updated"),),
-        admin.clone(),
-    );
+    env.events()
+        .publish((Symbol::new(env, "insurance_cfg_updated"),), admin.clone());
 }
 
 /// Emit when a comment is added

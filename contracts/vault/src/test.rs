@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use super::*;
-use crate::types::VelocityConfig;
 use crate::types::TimeBasedThreshold;
+use crate::types::VelocityConfig;
 use crate::{InitConfig, VaultDAO, VaultDAOClient};
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
