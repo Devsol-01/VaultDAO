@@ -899,8 +899,6 @@ fn test_verify_attachment() {
     );
     let ipfs_hash =
         soroban_sdk::String::from_str(&env, "QmXyZ123456789abcdefghijklmnopqrstuvwxyz1234");
-    let fake_hash =
-        soroban_sdk::String::from_str(&env, "QmFake123456789abcdefghijklmnopqrstuvwxyz123");
 
     client.add_attachment(&signer1, &proposal_id, &ipfs_hash);
     // Attachment added successfully (no public getter to verify)
