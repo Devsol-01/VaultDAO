@@ -1804,3 +1804,465 @@ fn test_condition_no_conditions() {
     let result = client.try_execute_proposal(&admin, &proposal_id);
     assert_ne!(result.err(), Some(Ok(VaultError::ConditionsNotMet)));
 }
+
+#[test]
+fn test_cancel_proposal_by_proposer() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+
+    let config = InitConfig {
+        signers,
+        threshold: 2,
+        spending_limit: 1000,
+        daily_limit: 5000,
+        weekly_limit: 10000,
+        timelock_threshold: 500,
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &100,
+        &Symbol::new(&env, "test"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    // Verify daily spent is 100 before cancellation
+    let spent_before = client.get_today_spent();
+    assert_eq!(spent_before, 100);
+
+    // Proposer cancels their own proposal
+    client.cancel_proposal(&signer1, &proposal_id, &Symbol::new(&env, "mistake"));
+
+    let proposal = client.get_proposal(&proposal_id);
+    assert_eq!(proposal.status, ProposalStatus::Cancelled);
+
+    // Spending should be refunded
+    let spent_after = client.get_today_spent();
+    assert_eq!(spent_after, 0);
+}
+
+#[test]
+fn test_cancel_proposal_by_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+
+    let config = InitConfig {
+        signers,
+        threshold: 2,
+        spending_limit: 1000,
+        daily_limit: 5000,
+        weekly_limit: 10000,
+        timelock_threshold: 500,
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &200,
+        &Symbol::new(&env, "test"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    // Admin cancels the proposal
+    client.cancel_proposal(&admin, &proposal_id, &Symbol::new(&env, "policy"));
+
+    let proposal = client.get_proposal(&proposal_id);
+    assert_eq!(proposal.status, ProposalStatus::Cancelled);
+}
+
+#[test]
+fn test_cancel_proposal_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let signer2 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+    signers.push_back(signer2.clone());
+
+    let config = InitConfig {
+        signers,
+        threshold: 2,
+        spending_limit: 1000,
+        daily_limit: 5000,
+        weekly_limit: 10000,
+        timelock_threshold: 500,
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+    client.set_role(&admin, &signer2, &Role::Treasurer);
+
+    // signer1 creates proposal
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &100,
+        &Symbol::new(&env, "test"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    // signer2 (not proposer, not admin) tries to cancel
+    let res = client.try_cancel_proposal(&signer2, &proposal_id, &Symbol::new(&env, "nope"));
+    assert_eq!(res.err(), Some(Ok(VaultError::Unauthorized)));
+}
+
+#[test]
+fn test_cancel_non_pending_proposal_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+
+    let config = InitConfig {
+        signers,
+        threshold: 1,
+        spending_limit: 1000,
+        daily_limit: 5000,
+        weekly_limit: 10000,
+        timelock_threshold: 5000, // high so no timelock
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &100,
+        &Symbol::new(&env, "test"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    // Approve it (status -> Approved)
+    client.approve_proposal(&signer1, &proposal_id);
+
+    // Can't cancel an approved proposal
+    let res = client.try_cancel_proposal(&signer1, &proposal_id, &Symbol::new(&env, "late"));
+    assert_eq!(res.err(), Some(Ok(VaultError::ProposalNotPending)));
+}
+
+#[test]
+fn test_cancel_already_cancelled_proposal_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+
+    let config = InitConfig {
+        signers,
+        threshold: 2,
+        spending_limit: 1000,
+        daily_limit: 5000,
+        weekly_limit: 10000,
+        timelock_threshold: 500,
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &100,
+        &Symbol::new(&env, "test"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    client.cancel_proposal(&signer1, &proposal_id, &Symbol::new(&env, "once"));
+
+    let res = client.try_cancel_proposal(&signer1, &proposal_id, &Symbol::new(&env, "twice"));
+    assert_eq!(res.err(), Some(Ok(VaultError::ProposalAlreadyCancelled)));
+}
+
+#[test]
+fn test_cancellation_audit_trail() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_sequence_number(500);
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+
+    let config = InitConfig {
+        signers,
+        threshold: 2,
+        spending_limit: 1000,
+        daily_limit: 5000,
+        weekly_limit: 10000,
+        timelock_threshold: 500,
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &300,
+        &Symbol::new(&env, "test"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    let reason = Symbol::new(&env, "changed");
+    client.cancel_proposal(&signer1, &proposal_id, &reason);
+
+    // Verify cancellation record
+    let record = client.get_cancellation_record(&proposal_id);
+    assert_eq!(record.proposal_id, proposal_id);
+    assert_eq!(record.cancelled_by, signer1);
+    assert_eq!(record.refunded_amount, 300);
+    assert_eq!(record.cancelled_at_ledger, 500);
+
+    // Verify history contains this proposal
+    let history = client.get_cancellation_history();
+    assert!(history.contains(proposal_id));
+}
+
+#[test]
+fn test_cancellation_refund_allows_new_proposal() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+
+    // Tight daily limit: exactly 1000
+    let config = InitConfig {
+        signers,
+        threshold: 2,
+        spending_limit: 1000,
+        daily_limit: 1000,
+        weekly_limit: 10000,
+        timelock_threshold: 5000,
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+
+    // Propose up to the daily limit
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &1000,
+        &Symbol::new(&env, "max"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    // Second proposal should fail (daily limit exhausted)
+    let res = client.try_propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &100,
+        &Symbol::new(&env, "overflow"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+    assert_eq!(res.err(), Some(Ok(VaultError::ExceedsDailyLimit)));
+
+    // Cancel the first proposal -> refunds 1000
+    client.cancel_proposal(&signer1, &proposal_id, &Symbol::new(&env, "freed"));
+
+    // Now a new proposal should succeed
+    let res = client.try_propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &500,
+        &Symbol::new(&env, "retry"),
+        &Priority::Normal,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_cancelled_proposal_removed_from_priority_queue() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(VaultDAO, ());
+    let client = VaultDAOClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let signer1 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let mut signers = Vec::new(&env);
+    signers.push_back(admin.clone());
+    signers.push_back(signer1.clone());
+
+    let config = InitConfig {
+        signers,
+        threshold: 2,
+        spending_limit: 1000,
+        daily_limit: 5000,
+        weekly_limit: 10000,
+        timelock_threshold: 500,
+        timelock_delay: 100,
+        velocity_limit: VelocityConfig {
+            limit: 100,
+            window: 3600,
+        },
+        threshold_strategy: ThresholdStrategy::Fixed,
+    };
+    client.initialize(&admin, &config);
+    client.set_role(&admin, &signer1, &Role::Treasurer);
+
+    let proposal_id = client.propose_transfer(
+        &signer1,
+        &user,
+        &token,
+        &100,
+        &Symbol::new(&env, "test"),
+        &Priority::High,
+        &Vec::new(&env),
+        &ConditionLogic::And,
+    );
+
+    let queue_before = client.get_proposals_by_priority(&Priority::High);
+    assert!(queue_before.contains(proposal_id));
+
+    client.cancel_proposal(&signer1, &proposal_id, &Symbol::new(&env, "cleanup"));
+
+    let queue_after = client.get_proposals_by_priority(&Priority::High);
+    assert!(!queue_after.contains(proposal_id));
+}

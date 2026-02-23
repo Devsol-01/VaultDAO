@@ -134,3 +134,16 @@ pub fn emit_signer_removed(env: &Env, signer: &Address, total_signers: u32) {
         (signer.clone(), total_signers),
     );
 }
+
+pub fn emit_proposal_cancelled(
+    env: &Env,
+    proposal_id: u64,
+    cancelled_by: &Address,
+    reason: &soroban_sdk::Symbol,
+    refunded_amount: i128,
+) {
+    env.events().publish(
+        (Symbol::new(env, "proposal_cancelled"), proposal_id),
+        (cancelled_by.clone(), reason.clone(), refunded_amount),
+    );
+}
