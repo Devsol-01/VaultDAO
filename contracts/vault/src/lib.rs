@@ -17,11 +17,10 @@ mod types;
 pub use types::InitConfig;
 
 use errors::VaultError;
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Symbol, Vec};
 use types::{
-    BridgeConfig, Comment, Condition, ConditionLogic, Config, CrossChainAsset, CrossChainProposal,
-    CrossChainTransferParams, InsuranceConfig, ListMode, NotificationPreferences, Priority,
-    Proposal, ProposalStatus, Reputation, Role, ThresholdStrategy,
+    Comment, Condition, ConditionLogic, Config, InsuranceConfig, ListMode, NotificationPreferences,
+    Priority, Proposal, ProposalStatus, Reputation, Role, ThresholdStrategy,
 };
 
 /// The main contract structure for VaultDAO.

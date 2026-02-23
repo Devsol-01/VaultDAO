@@ -1,5 +1,7 @@
 //! VaultDAO - Cross-Chain Bridge Module
 
+#![allow(dead_code)]
+
 use crate::errors::VaultError;
 use crate::types::{BridgeConfig, ChainId, CrossChainAsset, CrossChainProposal};
 
