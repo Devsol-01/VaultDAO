@@ -159,7 +159,6 @@ const Proposals: React.FC = () => {
             approvals: 3,
             approvedBy: ['0x345...678', '0xaaa...bbb', '0xccc...ddd'],
             threshold: 3,
-            approvedBy: ['0x345...678', '0xeee...fff', '0xggg...hhh'],
             createdAt: new Date(Date.now() - 172800000).toISOString()
           }
         ];
